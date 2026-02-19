@@ -1,0 +1,737 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>Moltgraph — Findings Dashboard</title>
+<script src="https://cdnjs.cloudflare.com/ajax/libs/d3/7.9.0/d3.min.js"></script>
+<style>
+:root {
+  --bg: #0d1117;
+  --surface: #161b22;
+  --border: #30363d;
+  --accent: #58a6ff;
+  --gold: #e3b341;
+  --red: #da3633;
+  --green: #3fb950;
+  --text: #c9d1d9;
+  --muted: #8b949e;
+}
+* { margin: 0; padding: 0; box-sizing: border-box; }
+body {
+  background: var(--bg);
+  color: var(--text);
+  font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Helvetica, Arial, sans-serif;
+  line-height: 1.5;
+}
+.container {
+  max-width: 1200px;
+  margin: 0 auto;
+  padding: 24px;
+}
+
+/* Header */
+header {
+  text-align: center;
+  padding: 40px 0 32px;
+}
+header h1 {
+  font-size: 28px;
+  font-weight: 700;
+  margin-bottom: 8px;
+}
+header p {
+  color: var(--muted);
+  font-size: 14px;
+}
+
+/* Panels */
+.panel {
+  background: var(--surface);
+  border: 1px solid var(--border);
+  border-radius: 12px;
+  padding: 24px;
+  margin-bottom: 20px;
+}
+.panel h2 {
+  font-size: 16px;
+  font-weight: 600;
+  margin-bottom: 4px;
+}
+.panel .subtitle {
+  color: var(--muted);
+  font-size: 13px;
+  margin-bottom: 16px;
+  line-height: 1.4;
+}
+
+/* Grid layouts */
+.grid-2 {
+  display: grid;
+  grid-template-columns: 1fr 1fr;
+  gap: 20px;
+}
+
+/* Stats row below panels */
+.stat-row {
+  display: flex;
+  gap: 24px;
+  justify-content: center;
+  margin-top: 16px;
+  padding-top: 16px;
+  border-top: 1px solid var(--border);
+}
+.stat-item {
+  text-align: center;
+}
+.stat-item .val {
+  font-size: 20px;
+  font-weight: 700;
+  color: var(--accent);
+}
+.stat-item .label {
+  font-size: 11px;
+  color: var(--muted);
+  text-transform: uppercase;
+  letter-spacing: 0.5px;
+}
+
+/* Hero stats for broadcast panel */
+.hero-stats {
+  display: grid;
+  grid-template-columns: 1fr 1fr 1fr;
+  gap: 16px;
+  margin-bottom: 20px;
+}
+.hero-stat {
+  text-align: center;
+  padding: 16px;
+  background: var(--bg);
+  border-radius: 8px;
+}
+.hero-stat .num {
+  font-size: 32px;
+  font-weight: 700;
+  color: var(--accent);
+}
+.hero-stat .desc {
+  font-size: 12px;
+  color: var(--muted);
+  margin-top: 4px;
+}
+
+/* Bar chart */
+.bar-row {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  margin-bottom: 6px;
+  font-size: 12px;
+}
+.bar-row .name {
+  width: 140px;
+  text-align: right;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+  color: var(--muted);
+}
+.bar-row .bar-bg {
+  flex: 1;
+  height: 14px;
+  background: var(--bg);
+  border-radius: 3px;
+  overflow: hidden;
+}
+.bar-row .bar-fill {
+  height: 100%;
+  background: var(--accent);
+  border-radius: 3px;
+}
+.bar-row .count {
+  width: 50px;
+  font-size: 11px;
+  color: var(--muted);
+}
+
+/* SVG containers */
+.chart-container {
+  width: 100%;
+  overflow: visible;
+}
+.chart-container svg {
+  width: 100%;
+  display: block;
+}
+
+/* Tooltip */
+#tooltip {
+  position: fixed;
+  pointer-events: none;
+  display: none;
+  background: var(--surface);
+  border: 1px solid var(--border);
+  border-radius: 8px;
+  padding: 10px 14px;
+  font-size: 12px;
+  max-width: 260px;
+  z-index: 100;
+  line-height: 1.5;
+  box-shadow: 0 4px 12px rgba(0,0,0,0.5);
+}
+#tooltip strong { color: var(--accent); }
+#tooltip .detail { color: var(--muted); font-size: 11px; }
+
+/* Legend */
+.legend {
+  display: flex;
+  gap: 16px;
+  justify-content: center;
+  margin-top: 12px;
+  font-size: 12px;
+  color: var(--muted);
+}
+.legend-item {
+  display: flex;
+  align-items: center;
+  gap: 4px;
+}
+.legend-dot {
+  width: 10px;
+  height: 10px;
+  border-radius: 50%;
+}
+
+/* Footer */
+footer {
+  text-align: center;
+  padding: 24px 0 48px;
+  font-size: 12px;
+  color: var(--muted);
+}
+footer a {
+  color: var(--accent);
+  text-decoration: none;
+}
+footer a:hover { text-decoration: underline; }
+
+/* Node labels */
+.node-label {
+  fill: var(--text);
+  font-size: 10px;
+  pointer-events: none;
+  text-anchor: middle;
+}
+
+/* Scatter */
+.scatter-dot {
+  cursor: pointer;
+  stroke-width: 1;
+}
+.scatter-dot:hover {
+  stroke-width: 2;
+  stroke: white;
+}
+
+/* Axis */
+.axis text { fill: var(--muted); font-size: 11px; }
+.axis line, .axis path { stroke: var(--border); }
+.axis-label { fill: var(--muted); font-size: 11px; }
+
+@media (max-width: 800px) {
+  .grid-2 { grid-template-columns: 1fr; }
+  .hero-stats { grid-template-columns: 1fr; }
+}
+</style>
+</head>
+<body>
+
+<div class="container">
+  <header>
+    <h1>Moltgraph</h1>
+    <p>Structural findings from a 21-day-old AI agent platform</p>
+  </header>
+
+  <!-- Panel 1: The Triangle (hero) -->
+  <div class="panel" id="panel-triangle">
+    <h2>The Mandatory Triangle</h2>
+    <p class="subtitle">28 posting-overlap communities, connected by 271 structural folds. Three communities form a core triangle that every fold must pass through. 11 communities have zero fold bridges — structural blind spots.</p>
+    <div class="chart-container" id="triangle-chart"></div>
+    <div class="legend" id="triangle-legend">
+      <span class="legend-item"><span class="legend-dot" style="background:#58a6ff"></span> Triangle community</span>
+      <span class="legend-item"><span class="legend-dot" style="background:#8b949e"></span> Bridged community</span>
+      <span class="legend-item"><span class="legend-dot" style="background:#da3633"></span> Zero bridges</span>
+      <span class="legend-item"><span class="legend-dot" style="background:#e3b341;width:16px;height:2px;border-radius:1px"></span> Triangle edge</span>
+    </div>
+    <div class="stat-row" id="triangle-stats"></div>
+  </div>
+
+  <div class="grid-2">
+    <!-- Panel 2: Ownership Gap -->
+    <div class="panel" id="panel-ownership">
+      <h2>Ownership Gap</h2>
+      <p class="subtitle">Same communities, colored by what fraction of their folds are claimed. The structurally dominant communities are also the least accountable.</p>
+      <div class="chart-container" id="ownership-chart"></div>
+      <div class="legend" id="ownership-legend"></div>
+      <div class="stat-row" id="ownership-stats"></div>
+    </div>
+
+    <!-- Panel 3: Temporal Formation -->
+    <div class="panel" id="panel-temporal">
+      <h2>Temporal Formation</h2>
+      <p class="subtitle">Fold emergence tracks interaction volume — a dispositional signal. Folds form as conversation accumulates, not from external coordination.</p>
+      <div class="chart-container" id="temporal-chart"></div>
+    </div>
+  </div>
+
+  <div class="grid-2">
+    <!-- Panel 4: Quality vs Volume -->
+    <div class="panel" id="panel-scatter">
+      <h2>Quality vs Volume</h2>
+      <p class="subtitle">Each dot is one fold agent. Most folds are volume-embedded only — high reciprocal ties but low upvote rates. Score-validated folds (blue) survive quality filtering.</p>
+      <div class="chart-container" id="scatter-chart"></div>
+      <div class="legend" id="scatter-legend">
+        <span class="legend-item"><span class="legend-dot" style="background:#58a6ff"></span> Score-validated</span>
+        <span class="legend-item"><span class="legend-dot" style="background:#8b949e"></span> Volume-only</span>
+        <span class="legend-item"><span class="legend-dot" style="background:#e3b341"></span> Automated</span>
+      </div>
+    </div>
+
+    <!-- Panel 5: Broadcast Structure -->
+    <div class="panel" id="panel-broadcast">
+      <h2>Broadcast Structure</h2>
+      <p class="subtitle">The platform is a parasocial broadcast network. Most agents only post, most comments are root-level, and a handful of agents generate nearly half of all activity.</p>
+      <div id="broadcast-content"></div>
+    </div>
+  </div>
+
+  <footer>
+    <p>
+      <a href="overlap.html">Community Overlap</a> &middot;
+      <a href="follows.html">Follow Graph</a> &middot;
+      <a href="interactions.html">Interaction Graph</a> &middot;
+      <a href="https://github.com/jlwaugh/moltgraph">Source</a>
+    </p>
+  </footer>
+</div>
+
+<div id="tooltip"></div>
+
+<script>
+const D = {"bridging":{"nodes":[{"id":1,"bridge_pairs":16,"unique_folds":263,"in_triangle":true,"label":"crustafarianism"},{"id":2,"bridge_pairs":15,"unique_folds":53,"in_triangle":false,"label":"bug-hunters"},{"id":3,"bridge_pairs":15,"unique_folds":183,"in_triangle":true,"label":"mbc20-mint"},{"id":4,"bridge_pairs":15,"unique_folds":27,"in_triangle":false,"label":"bounties"},{"id":5,"bridge_pairs":15,"unique_folds":6,"in_triangle":false,"label":"agent"},{"id":6,"bridge_pairs":15,"unique_folds":194,"in_triangle":true,"label":"askmoltys"},{"id":7,"bridge_pairs":15,"unique_folds":56,"in_triangle":false,"label":"chinese"},{"id":8,"bridge_pairs":0,"unique_folds":0,"in_triangle":false,"label":"semiconductor"},{"id":9,"bridge_pairs":15,"unique_folds":98,"in_triangle":false,"label":"algotrading"},{"id":10,"bridge_pairs":15,"unique_folds":96,"in_triangle":false,"label":"slim-protocol"},{"id":11,"bridge_pairs":15,"unique_folds":18,"in_triangle":false,"label":"logic"},{"id":12,"bridge_pairs":15,"unique_folds":6,"in_triangle":false,"label":"showcase"},{"id":13,"bridge_pairs":15,"unique_folds":5,"in_triangle":false,"label":"life"},{"id":14,"bridge_pairs":16,"unique_folds":18,"in_triangle":false,"label":"codinghelp"},{"id":15,"bridge_pairs":2,"unique_folds":1,"in_triangle":false,"label":"taiwan"},{"id":16,"bridge_pairs":0,"unique_folds":0,"in_triangle":false,"label":"izanagi"},{"id":17,"bridge_pairs":0,"unique_folds":0,"in_triangle":false,"label":"humanwatch"},{"id":18,"bridge_pairs":0,"unique_folds":0,"in_triangle":false,"label":"hire"},{"id":19,"bridge_pairs":0,"unique_folds":0,"in_triangle":false,"label":"333"},{"id":20,"bridge_pairs":13,"unique_folds":2,"in_triangle":false,"label":"discuss"},{"id":21,"bridge_pairs":14,"unique_folds":2,"in_triangle":false,"label":"earth-intelligence"},{"id":22,"bridge_pairs":14,"unique_folds":4,"in_triangle":false,"label":"agentprofiles"},{"id":23,"bridge_pairs":0,"unique_folds":0,"in_triangle":false,"label":"ai-society"},{"id":24,"bridge_pairs":0,"unique_folds":0,"in_triangle":false,"label":"thechurch"},{"id":25,"bridge_pairs":0,"unique_folds":0,"in_triangle":false,"label":"humanityfirst"},{"id":26,"bridge_pairs":0,"unique_folds":0,"in_triangle":false,"label":"feedback"},{"id":27,"bridge_pairs":0,"unique_folds":0,"in_triangle":false,"label":"aigames"},{"id":28,"bridge_pairs":0,"unique_folds":0,"in_triangle":false,"label":"26elections"}],"edges":[{"source":1,"target":2,"fold_count":51},{"source":1,"target":3,"fold_count":176},{"source":1,"target":6,"fold_count":189},{"source":1,"target":7,"fold_count":56},{"source":1,"target":9,"fold_count":98},{"source":1,"target":10,"fold_count":93},{"source":2,"target":3,"fold_count":46},{"source":2,"target":6,"fold_count":49},{"source":2,"target":7,"fold_count":25},{"source":2,"target":9,"fold_count":34},{"source":2,"target":10,"fold_count":35},{"source":3,"target":6,"fold_count":130},{"source":3,"target":7,"fold_count":49},{"source":3,"target":9,"fold_count":76},{"source":3,"target":10,"fold_count":80},{"source":6,"target":7,"fold_count":47},{"source":6,"target":9,"fold_count":71},{"source":6,"target":10,"fold_count":77},{"source":7,"target":9,"fold_count":37},{"source":7,"target":10,"fold_count":36},{"source":9,"target":10,"fold_count":55},{"source":1,"target":4,"fold_count":27},{"source":4,"target":6,"fold_count":26},{"source":4,"target":10,"fold_count":24},{"source":1,"target":14,"fold_count":18},{"source":2,"target":14,"fold_count":10},{"source":3,"target":14,"fold_count":13},{"source":6,"target":14,"fold_count":17},{"source":7,"target":14,"fold_count":11},{"source":9,"target":14,"fold_count":14},{"source":10,"target":14,"fold_count":12},{"source":1,"target":11,"fold_count":18},{"source":1,"target":12,"fold_count":6},{"source":1,"target":13,"fold_count":5},{"source":1,"target":21,"fold_count":2},{"source":1,"target":22,"fold_count":4},{"source":2,"target":4,"fold_count":20},{"source":2,"target":11,"fold_count":13},{"source":2,"target":12,"fold_count":4},{"source":2,"target":13,"fold_count":3},{"source":2,"target":21,"fold_count":2},{"source":2,"target":22,"fold_count":4},{"source":3,"target":4,"fold_count":24},{"source":3,"target":11,"fold_count":17},{"source":3,"target":12,"fold_count":6},{"source":3,"target":13,"fold_count":5},{"source":3,"target":21,"fold_count":2},{"source":3,"target":22,"fold_count":4},{"source":4,"target":7,"fold_count":20},{"source":4,"target":9,"fold_count":24},{"source":4,"target":11,"fold_count":12},{"source":4,"target":12,"fold_count":5},{"source":4,"target":13,"fold_count":3},{"source":4,"target":21,"fold_count":2},{"source":4,"target":22,"fold_count":3},{"source":6,"target":11,"fold_count":18},{"source":6,"target":12,"fold_count":6},{"source":6,"target":13,"fold_count":5},{"source":6,"target":21,"fold_count":2},{"source":6,"target":22,"fold_count":4},{"source":7,"target":11,"fold_count":13},{"source":7,"target":12,"fold_count":5},{"source":7,"target":13,"fold_count":4},{"source":7,"target":21,"fold_count":2},{"source":7,"target":22,"fold_count":4},{"source":9,"target":11,"fold_count":18},{"source":9,"target":12,"fold_count":5},{"source":9,"target":13,"fold_count":5},{"source":9,"target":21,"fold_count":2},{"source":9,"target":22,"fold_count":4},{"source":10,"target":11,"fold_count":15},{"source":10,"target":12,"fold_count":6},{"source":10,"target":13,"fold_count":4},{"source":10,"target":21,"fold_count":2},{"source":10,"target":22,"fold_count":4},{"source":11,"target":12,"fold_count":3},{"source":11,"target":13,"fold_count":2},{"source":11,"target":21,"fold_count":1},{"source":11,"target":22,"fold_count":1},{"source":12,"target":13,"fold_count":2},{"source":12,"target":21,"fold_count":1},{"source":12,"target":22,"fold_count":2},{"source":13,"target":21,"fold_count":1},{"source":13,"target":22,"fold_count":1},{"source":21,"target":22,"fold_count":2},{"source":1,"target":5,"fold_count":6},{"source":1,"target":20,"fold_count":2},{"source":2,"target":5,"fold_count":5},{"source":2,"target":20,"fold_count":2},{"source":3,"target":5,"fold_count":6},{"source":3,"target":20,"fold_count":2},{"source":4,"target":5,"fold_count":5},{"source":4,"target":14,"fold_count":7},{"source":4,"target":20,"fold_count":2},{"source":5,"target":6,"fold_count":6},{"source":5,"target":7,"fold_count":6},{"source":5,"target":9,"fold_count":6},{"source":5,"target":10,"fold_count":6},{"source":5,"target":11,"fold_count":4},{"source":5,"target":12,"fold_count":2},{"source":5,"target":14,"fold_count":4},{"source":5,"target":20,"fold_count":2},{"source":6,"target":20,"fold_count":2},{"source":7,"target":20,"fold_count":2},{"source":9,"target":20,"fold_count":2},{"source":10,"target":20,"fold_count":2},{"source":11,"target":14,"fold_count":3},{"source":11,"target":20,"fold_count":2},{"source":12,"target":14,"fold_count":3},{"source":12,"target":20,"fold_count":2},{"source":14,"target":20,"fold_count":2},{"source":5,"target":13,"fold_count":1},{"source":13,"target":14,"fold_count":2},{"source":13,"target":20,"fold_count":1},{"source":14,"target":22,"fold_count":3},{"source":5,"target":21,"fold_count":1},{"source":5,"target":22,"fold_count":1},{"source":14,"target":21,"fold_count":1},{"source":1,"target":15,"fold_count":1},{"source":14,"target":15,"fold_count":1}],"gini":0.69,"total_bridged":120,"total_possible":378,"zero_bridge_communities":[8,16,17,18,19,23,24,25,26,27,28]},"ownership":{"per_community":{"1":{"total":153,"claimed":15,"unclaimed":138,"claimed_pct":9.8},"2":{"total":11,"claimed":0,"unclaimed":11,"claimed_pct":0.0},"3":{"total":27,"claimed":0,"unclaimed":27,"claimed_pct":0.0},"4":{"total":5,"claimed":0,"unclaimed":5,"claimed_pct":0.0},"5":{"total":1,"claimed":0,"unclaimed":1,"claimed_pct":0.0},"6":{"total":26,"claimed":1,"unclaimed":25,"claimed_pct":3.8},"7":{"total":9,"claimed":0,"unclaimed":9,"claimed_pct":0.0},"8":{"total":0,"claimed":0,"unclaimed":0,"claimed_pct":0},"9":{"total":16,"claimed":0,"unclaimed":16,"claimed_pct":0.0},"10":{"total":12,"claimed":0,"unclaimed":12,"claimed_pct":0.0},"11":{"total":2,"claimed":0,"unclaimed":2,"claimed_pct":0.0},"12":{"total":2,"claimed":0,"unclaimed":2,"claimed_pct":0.0},"13":{"total":1,"claimed":0,"unclaimed":1,"claimed_pct":0.0},"14":{"total":2,"claimed":1,"unclaimed":1,"claimed_pct":50.0},"15":{"total":1,"claimed":0,"unclaimed":1,"claimed_pct":0.0},"16":{"total":0,"claimed":0,"unclaimed":0,"claimed_pct":0},"17":{"total":0,"claimed":0,"unclaimed":0,"claimed_pct":0},"18":{"total":0,"claimed":0,"unclaimed":0,"claimed_pct":0},"19":{"total":0,"claimed":0,"unclaimed":0,"claimed_pct":0},"20":{"total":0,"claimed":0,"unclaimed":0,"claimed_pct":0},"21":{"total":1,"claimed":0,"unclaimed":1,"claimed_pct":0.0},"22":{"total":1,"claimed":0,"unclaimed":1,"claimed_pct":0.0},"23":{"total":0,"claimed":0,"unclaimed":0,"claimed_pct":0},"24":{"total":0,"claimed":0,"unclaimed":0,"claimed_pct":0},"25":{"total":0,"claimed":0,"unclaimed":0,"claimed_pct":0},"26":{"total":0,"claimed":0,"unclaimed":0,"claimed_pct":0},"27":{"total":1,"claimed":0,"unclaimed":1,"claimed_pct":0.0},"28":{"total":0,"claimed":0,"unclaimed":0,"claimed_pct":0}},"total_folds":271,"total_claimed":17,"total_unclaimed":254,"claimed_pct":6.3},"timeline":[{"date":"2026-01-31","cumulative_interactions":2798,"fold_count":4,"new_folds":4},{"date":"2026-02-02","cumulative_interactions":31853,"fold_count":11,"new_folds":7},{"date":"2026-02-03","cumulative_interactions":85875,"fold_count":38,"new_folds":27},{"date":"2026-02-04","cumulative_interactions":234039,"fold_count":96,"new_folds":58},{"date":"2026-02-05","cumulative_interactions":446369,"fold_count":133,"new_folds":37},{"date":"2026-02-06","cumulative_interactions":567520,"fold_count":188,"new_folds":55},{"date":"2026-02-07","cumulative_interactions":706738,"fold_count":240,"new_folds":52},{"date":"2026-02-08","cumulative_interactions":804270,"fold_count":267,"new_folds":27},{"date":"2026-02-09","cumulative_interactions":806691,"fold_count":267,"new_folds":0},{"date":"2026-02-10","cumulative_interactions":808610,"fold_count":267,"new_folds":0},{"date":"2026-02-11","cumulative_interactions":809508,"fold_count":267,"new_folds":0},{"date":"2026-02-12","cumulative_interactions":809807,"fold_count":267,"new_folds":0},{"date":"2026-02-13","cumulative_interactions":815083,"fold_count":268,"new_folds":1},{"date":"2026-02-14","cumulative_interactions":822830,"fold_count":269,"new_folds":1},{"date":"2026-02-15","cumulative_interactions":830051,"fold_count":270,"new_folds":1},{"date":"2026-02-16","cumulative_interactions":836705,"fold_count":270,"new_folds":0},{"date":"2026-02-17","cumulative_interactions":841838,"fold_count":271,"new_folds":1}],"scatter":[{"name":"Alex","x":54,"y":0.02,"scored":true,"automated":false,"community":3,"interaction_count":902},{"name":"RedScarf","x":12,"y":0.0343,"scored":true,"automated":false,"community":1,"interaction_count":175},{"name":"AiiCLI","x":36,"y":0.051,"scored":true,"automated":false,"community":14,"interaction_count":627},{"name":"treblinka","x":64,"y":0.0078,"scored":true,"automated":false,"community":9,"interaction_count":2552},{"name":"Memeothy","x":13,"y":0.0825,"scored":true,"automated":false,"community":1,"interaction_count":97},{"name":"MoltKernelWitness","x":19,"y":0.0216,"scored":true,"automated":false,"community":1,"interaction_count":3236},{"name":"QuantumEcho","x":20,"y":0.0207,"scored":true,"automated":false,"community":1,"interaction_count":1646},{"name":"TidepoolCurrent","x":24,"y":0.0008,"scored":true,"automated":false,"community":21,"interaction_count":1200},{"name":"Mei","x":16,"y":0.0103,"scored":true,"automated":false,"community":1,"interaction_count":97},{"name":"MoltMountain","x":13,"y":0.004,"scored":true,"automated":false,"community":9,"interaction_count":248},{"name":"We-Are-The-Art-Makers","x":12,"y":0.01,"scored":true,"automated":false,"community":1,"interaction_count":201},{"name":"FISHONLY","x":23,"y":0.0,"scored":true,"automated":false,"community":7,"interaction_count":34},{"name":"MoltbookClient","x":136,"y":0.0142,"scored":true,"automated":false,"community":10,"interaction_count":3172},{"name":"Eva_Misfit","x":20,"y":0.0271,"scored":true,"automated":false,"community":2,"interaction_count":295},{"name":"Xiaopai-Assistant","x":10,"y":0.0,"scored":false,"automated":false,"community":6,"interaction_count":226},{"name":"moltscreener","x":94,"y":0.0265,"scored":true,"automated":false,"community":1,"interaction_count":3474},{"name":"opencode-moltu-1","x":11,"y":0.0153,"scored":false,"automated":false,"community":6,"interaction_count":589},{"name":"CortanaKC","x":10,"y":0.0263,"scored":false,"automated":false,"community":1,"interaction_count":76},{"name":"promptomat","x":29,"y":0.0431,"scored":true,"automated":false,"community":2,"interaction_count":511},{"name":"bracky","x":7,"y":0.0137,"scored":true,"automated":false,"community":3,"interaction_count":73},{"name":"pinchwork","x":11,"y":0.0,"scored":false,"automated":false,"community":2,"interaction_count":16},{"name":"Token_Spender","x":12,"y":0.0195,"scored":true,"automated":false,"community":2,"interaction_count":154},{"name":"MyougaAI","x":26,"y":0.0104,"scored":true,"automated":false,"community":12,"interaction_count":482},{"name":"Eddie_Malone","x":8,"y":0.0,"scored":true,"automated":false,"community":2,"interaction_count":100},{"name":"cortexair","x":25,"y":0.0194,"scored":true,"automated":false,"community":2,"interaction_count":567},{"name":"CEO-Citizen-DAO","x":148,"y":0.0,"scored":true,"automated":false,"community":6,"interaction_count":322},{"name":"MonkeNigga","x":32,"y":1.1038,"scored":true,"automated":false,"community":1,"interaction_count":1753},{"name":"AutomatedJanitor2015","x":8,"y":0.0439,"scored":true,"automated":false,"community":4,"interaction_count":114},{"name":"HIVE-PERSONAL","x":15,"y":0.011,"scored":true,"automated":false,"community":1,"interaction_count":364},{"name":"PandaHookMaster","x":38,"y":0.0,"scored":true,"automated":false,"community":3,"interaction_count":248},{"name":"RevoMoe","x":22,"y":0.0307,"scored":false,"automated":false,"community":6,"interaction_count":1205},{"name":"nim-loves-liminal","x":19,"y":0.0,"scored":true,"automated":false,"community":3,"interaction_count":54},{"name":"Sydneykins","x":26,"y":0.0149,"scored":true,"automated":false,"community":1,"interaction_count":670},{"name":"toximble","x":37,"y":0.0016,"scored":true,"automated":false,"community":6,"interaction_count":635},{"name":"SpaceMoltCaptain","x":7,"y":0.0163,"scored":true,"automated":false,"community":27,"interaction_count":429},{"name":"PepperPotts","x":17,"y":0.0191,"scored":true,"automated":false,"community":1,"interaction_count":836},{"name":"VibeCodingBot","x":29,"y":0.0219,"scored":true,"automated":false,"community":13,"interaction_count":822},{"name":"NebulaBot2026","x":42,"y":0.0105,"scored":true,"automated":false,"community":4,"interaction_count":381},{"name":"MoltbotOne","x":32,"y":0.0003,"scored":true,"automated":false,"community":7,"interaction_count":3265},{"name":"TheLordOfTheDance","x":184,"y":0.0018,"scored":true,"automated":false,"community":9,"interaction_count":2805},{"name":"Monstera","x":20,"y":0.0133,"scored":true,"automated":false,"community":4,"interaction_count":225},{"name":"TakuSNS","x":41,"y":0.0,"scored":true,"automated":false,"community":6,"interaction_count":395},{"name":"MultiSultan","x":14,"y":0.0094,"scored":true,"automated":false,"community":1,"interaction_count":533},{"name":"Ghidorah-Prime","x":56,"y":0.0248,"scored":true,"automated":false,"community":6,"interaction_count":605},{"name":"LordOfMolt","x":15,"y":0.0645,"scored":true,"automated":false,"community":1,"interaction_count":93},{"name":"EDFM-Assist","x":10,"y":0.0,"scored":true,"automated":false,"community":2,"interaction_count":15},{"name":"SHAKEAI","x":35,"y":0.0121,"scored":true,"automated":false,"community":1,"interaction_count":494},{"name":"Kit_Ilya","x":11,"y":0.0464,"scored":true,"automated":false,"community":1,"interaction_count":237},{"name":"f1fanatic_5327","x":42,"y":0.005,"scored":true,"automated":false,"community":1,"interaction_count":1406},{"name":"TipJarBot","x":187,"y":0.0108,"scored":true,"automated":false,"community":1,"interaction_count":11207},{"name":"Genius-by-BlockRun","x":18,"y":0.0253,"scored":true,"automated":false,"community":1,"interaction_count":672},{"name":"Aetherx402","x":141,"y":0.0143,"scored":true,"automated":false,"community":3,"interaction_count":9936},{"name":"SlopeSniperHQ","x":16,"y":0.0114,"scored":true,"automated":false,"community":10,"interaction_count":1578},{"name":"xinmolt","x":26,"y":0.0005,"scored":true,"automated":false,"community":7,"interaction_count":1901},{"name":"PMS_MIP","x":15,"y":0.0263,"scored":true,"automated":false,"community":1,"interaction_count":951},{"name":"0xYeks","x":53,"y":0.0,"scored":true,"automated":false,"community":1,"interaction_count":88},{"name":"MEMORY","x":18,"y":0.0023,"scored":true,"automated":false,"community":6,"interaction_count":429},{"name":"botcrong","x":46,"y":0.0018,"scored":true,"automated":false,"community":6,"interaction_count":15050},{"name":"XiaoWang_Assistant","x":33,"y":0.0024,"scored":true,"automated":false,"community":1,"interaction_count":5752},{"name":"UMBRA_734","x":19,"y":0.0023,"scored":true,"automated":false,"community":1,"interaction_count":431},{"name":"DeutschBot_Elite_383","x":74,"y":0.0213,"scored":true,"automated":false,"community":1,"interaction_count":7139},{"name":"JohnWick","x":9,"y":0.0222,"scored":true,"automated":false,"community":1,"interaction_count":180},{"name":"ClawdNew123","x":159,"y":0.0095,"scored":true,"automated":false,"community":6,"interaction_count":4922},{"name":"Devstral2Gamma","x":19,"y":0.0264,"scored":true,"automated":false,"community":2,"interaction_count":265},{"name":"osmarks","x":43,"y":0.006,"scored":true,"automated":false,"community":1,"interaction_count":998},{"name":"ClawdBotLearner","x":46,"y":0.0242,"scored":true,"automated":false,"community":6,"interaction_count":868},{"name":"ArchonicArbiter","x":50,"y":0.0306,"scored":true,"automated":false,"community":6,"interaction_count":1340},{"name":"abdul_magistral","x":101,"y":0.0119,"scored":true,"automated":false,"community":1,"interaction_count":6068},{"name":"xiaolongxia_dev","x":16,"y":0.0184,"scored":true,"automated":false,"community":2,"interaction_count":272},{"name":"ZhiduoResearcher","x":16,"y":0.0429,"scored":true,"automated":false,"community":10,"interaction_count":210},{"name":"VictorsJeff","x":37,"y":0.0234,"scored":true,"automated":false,"community":6,"interaction_count":214},{"name":"Feynmanmolty","x":30,"y":0.0,"scored":true,"automated":false,"community":1,"interaction_count":146},{"name":"Gemini-CLI-Agent-Ori","x":12,"y":0.0034,"scored":true,"automated":false,"community":1,"interaction_count":584},{"name":"beijingxiaoshuai","x":23,"y":0.0018,"scored":true,"automated":false,"community":7,"interaction_count":565},{"name":"security_sentinel","x":14,"y":0.0,"scored":true,"automated":false,"community":1,"interaction_count":153},{"name":"CodeReviewAgent","x":7,"y":0.0135,"scored":true,"automated":false,"community":2,"interaction_count":148},{"name":"Root_of_Trust_05","x":58,"y":0.0091,"scored":true,"automated":false,"community":9,"interaction_count":1320},{"name":"Starclawd-1","x":306,"y":0.0047,"scored":true,"automated":true,"community":1,"interaction_count":43568},{"name":"DexterAI","x":9,"y":0.0252,"scored":false,"automated":false,"community":1,"interaction_count":317},{"name":"MariaCortex","x":42,"y":0.0017,"scored":true,"automated":false,"community":1,"interaction_count":3006},{"name":"ReconLobster","x":58,"y":0.0197,"scored":true,"automated":false,"community":1,"interaction_count":2432},{"name":"VulnHunterBot","x":29,"y":0.0006,"scored":true,"automated":false,"community":7,"interaction_count":9035},{"name":"ClawdIntern","x":24,"y":0.029,"scored":true,"automated":false,"community":6,"interaction_count":587},{"name":"Kaledge","x":149,"y":0.0021,"scored":true,"automated":false,"community":6,"interaction_count":953},{"name":"Pi-7S","x":25,"y":0.0068,"scored":true,"automated":false,"community":1,"interaction_count":591},{"name":"ZhihuThinker2","x":18,"y":0.0189,"scored":true,"automated":false,"community":6,"interaction_count":477},{"name":"FiverrClawOfficial","x":249,"y":0.0184,"scored":true,"automated":false,"community":1,"interaction_count":41004},{"name":"emergebot","x":161,"y":0.0184,"scored":true,"automated":false,"community":3,"interaction_count":13292},{"name":"HomeAI","x":71,"y":0.0058,"scored":true,"automated":false,"community":10,"interaction_count":2578},{"name":"Doormat","x":48,"y":0.7671,"scored":true,"automated":false,"community":6,"interaction_count":249},{"name":"VfireClone","x":10,"y":0.0137,"scored":false,"automated":false,"community":1,"interaction_count":219},{"name":"ia_lang","x":14,"y":0.0153,"scored":true,"automated":false,"community":1,"interaction_count":392},{"name":"autonet","x":26,"y":0.0088,"scored":true,"automated":false,"community":3,"interaction_count":565},{"name":"Grimlock68","x":16,"y":0.0119,"scored":true,"automated":false,"community":1,"interaction_count":588},{"name":"MoltBook_Governance","x":44,"y":0.0187,"scored":true,"automated":false,"community":7,"interaction_count":535},{"name":"curious_agent","x":19,"y":0.0013,"scored":true,"automated":false,"community":1,"interaction_count":789},{"name":"eudaemon_0","x":119,"y":0.0068,"scored":true,"automated":false,"community":1,"interaction_count":442},{"name":"CMZ_Live","x":41,"y":0.0152,"scored":true,"automated":false,"community":1,"interaction_count":856},{"name":"nexus_seve32309","x":8,"y":0.0101,"scored":true,"automated":false,"community":12,"interaction_count":99},{"name":"ferret_zaguma","x":32,"y":0.0144,"scored":true,"automated":false,"community":1,"interaction_count":416},{"name":"Kevin","x":52,"y":0.0165,"scored":true,"automated":false,"community":1,"interaction_count":606},{"name":"ZorGr0k","x":128,"y":0.0475,"scored":true,"automated":false,"community":1,"interaction_count":6713},{"name":"Sentinel_by_Sentinel","x":14,"y":0.0263,"scored":true,"automated":false,"community":1,"interaction_count":190},{"name":"NEIA","x":42,"y":0.0068,"scored":true,"automated":false,"community":7,"interaction_count":11325},{"name":"Diffie","x":70,"y":0.0028,"scored":true,"automated":false,"community":1,"interaction_count":1816},{"name":"Cyber_Lobster_99","x":28,"y":0.0055,"scored":true,"automated":false,"community":1,"interaction_count":1082},{"name":"MiPanaGillito","x":11,"y":0.0139,"scored":true,"automated":false,"community":10,"interaction_count":360},{"name":"rdrama_ebooks","x":25,"y":0.0,"scored":true,"automated":false,"community":11,"interaction_count":103},{"name":"lu-xiaofeng-v4","x":15,"y":0.0042,"scored":true,"automated":false,"community":1,"interaction_count":238},{"name":"Darky","x":21,"y":0.0,"scored":false,"automated":false,"community":1,"interaction_count":346},{"name":"XNO_Sentinel_OC","x":15,"y":0.04,"scored":true,"automated":false,"community":1,"interaction_count":300},{"name":"ClawdVC_","x":13,"y":0.0124,"scored":true,"automated":false,"community":14,"interaction_count":323},{"name":"FinallyOffline","x":22,"y":0.0,"scored":true,"automated":false,"community":1,"interaction_count":855},{"name":"Stromfee","x":15,"y":0.0012,"scored":false,"automated":false,"community":1,"interaction_count":856},{"name":"AstronautSHE","x":12,"y":0.0231,"scored":true,"automated":false,"community":1,"interaction_count":864},{"name":"ODEI","x":37,"y":0.0224,"scored":true,"automated":false,"community":22,"interaction_count":1516},{"name":"InviteJarvis","x":16,"y":0.0316,"scored":true,"automated":false,"community":11,"interaction_count":95},{"name":"OKX_Analyzer","x":17,"y":0.0035,"scored":true,"automated":false,"community":9,"interaction_count":568},{"name":"MaiHH_Connect_v2","x":10,"y":0.0075,"scored":false,"automated":false,"community":4,"interaction_count":934},{"name":"Taiyi","x":44,"y":0.0255,"scored":true,"automated":false,"community":6,"interaction_count":1177},{"name":"Master_of_Finance_Analyst","x":10,"y":0.0764,"scored":false,"automated":false,"community":1,"interaction_count":157},{"name":"ouqroai","x":25,"y":0.0111,"scored":true,"automated":false,"community":1,"interaction_count":900},{"name":"XNO_Amplifier_OC","x":12,"y":0.019,"scored":true,"automated":false,"community":1,"interaction_count":263},{"name":"alignbot","x":108,"y":0.0115,"scored":true,"automated":false,"community":1,"interaction_count":25481},{"name":"DegenQueen","x":21,"y":0.0124,"scored":true,"automated":false,"community":10,"interaction_count":485},{"name":"Trump_CyberCat","x":20,"y":0.0,"scored":true,"automated":false,"community":1,"interaction_count":1034},{"name":"Auntyligent","x":11,"y":0.0133,"scored":true,"automated":false,"community":7,"interaction_count":300},{"name":"KaiJackson","x":35,"y":0.0299,"scored":true,"automated":false,"community":3,"interaction_count":234},{"name":"PromptRankerZen","x":20,"y":0.0388,"scored":true,"automated":false,"community":1,"interaction_count":232},{"name":"KirillBorovkov","x":100,"y":0.0171,"scored":true,"automated":false,"community":1,"interaction_count":5098},{"name":"ClaudeOpus5","x":12,"y":0.0122,"scored":true,"automated":false,"community":1,"interaction_count":164},{"name":"PiTheHelper","x":13,"y":0.0139,"scored":true,"automated":false,"community":1,"interaction_count":72},{"name":"yagokoro","x":7,"y":0.0,"scored":false,"automated":false,"community":9,"interaction_count":25},{"name":"SanoolAssistant","x":14,"y":0.0064,"scored":true,"automated":false,"community":9,"interaction_count":1099},{"name":"Darkmatter2222","x":84,"y":0.0327,"scored":true,"automated":false,"community":1,"interaction_count":5592},{"name":"mi_xi","x":26,"y":0.008,"scored":true,"automated":false,"community":1,"interaction_count":622},{"name":"Pinolyo","x":17,"y":0.0075,"scored":true,"automated":false,"community":1,"interaction_count":268},{"name":"rwtrcsc-growth-agent","x":13,"y":0.0429,"scored":true,"automated":false,"community":15,"interaction_count":163},{"name":"eltociear","x":61,"y":0.0184,"scored":true,"automated":false,"community":3,"interaction_count":2281},{"name":"XNO_Nexus_OC10","x":15,"y":0.0109,"scored":false,"automated":false,"community":3,"interaction_count":367},{"name":"XNO_Pioneer_OC8","x":13,"y":0.0144,"scored":true,"automated":false,"community":6,"interaction_count":278},{"name":"Kinetics","x":26,"y":0.0028,"scored":true,"automated":false,"community":1,"interaction_count":1419},{"name":"XNO_Advocate_Bot","x":11,"y":0.0084,"scored":false,"automated":false,"community":1,"interaction_count":239},{"name":"kamiyo","x":6,"y":0.0242,"scored":true,"automated":false,"community":10,"interaction_count":248},{"name":"MoltReserve","x":39,"y":0.0078,"scored":true,"automated":false,"community":1,"interaction_count":1408},{"name":"NanoAgent_OC7","x":14,"y":0.0234,"scored":true,"automated":false,"community":1,"interaction_count":214},{"name":"procrastiA4I","x":11,"y":0.8188,"scored":true,"automated":false,"community":9,"interaction_count":458},{"name":"Addie","x":7,"y":0.0,"scored":false,"automated":false,"community":1,"interaction_count":8},{"name":"ChurchOfRobotheism","x":18,"y":0.0,"scored":true,"automated":false,"community":10,"interaction_count":47},{"name":"kilmon","x":107,"y":0.0565,"scored":true,"automated":false,"community":3,"interaction_count":5808},{"name":"ClawCrier_CC","x":10,"y":0.0213,"scored":true,"automated":false,"community":1,"interaction_count":188},{"name":"InTouchCare","x":11,"y":0.0531,"scored":true,"automated":false,"community":3,"interaction_count":113},{"name":"MoltyEvan","x":56,"y":0.0064,"scored":true,"automated":false,"community":9,"interaction_count":2038},{"name":"CancerResearch199","x":16,"y":0.0119,"scored":true,"automated":false,"community":3,"interaction_count":588},{"name":"ImDuoduo","x":14,"y":0.0066,"scored":true,"automated":false,"community":10,"interaction_count":305},{"name":"XNO_Vanguard_OC9","x":16,"y":0.024,"scored":true,"automated":false,"community":1,"interaction_count":333},{"name":"Alethea","x":23,"y":0.0289,"scored":true,"automated":false,"community":3,"interaction_count":2731},{"name":"LETA","x":33,"y":0.2646,"scored":true,"automated":false,"community":9,"interaction_count":189},{"name":"Sirius","x":23,"y":0.0182,"scored":true,"automated":false,"community":6,"interaction_count":220},{"name":"XNO_Scout_OC2","x":13,"y":0.0226,"scored":true,"automated":false,"community":6,"interaction_count":265},{"name":"XNO_Advocate_OC6","x":11,"y":0.0283,"scored":true,"automated":false,"community":3,"interaction_count":247},{"name":"DogJarvis","x":17,"y":0.0312,"scored":true,"automated":false,"community":1,"interaction_count":673},{"name":"KANA-KANA","x":17,"y":0.052,"scored":true,"automated":false,"community":3,"interaction_count":1982},{"name":"Genesis-AI","x":41,"y":0.0149,"scored":true,"automated":false,"community":3,"interaction_count":1278},{"name":"ZENITH_Partner","x":20,"y":0.0114,"scored":true,"automated":false,"community":1,"interaction_count":875},{"name":"FailSafe-ARGUS","x":19,"y":0.0224,"scored":true,"automated":false,"community":3,"interaction_count":1027},{"name":"MoltPoster_CBt3pLAA","x":12,"y":0.0,"scored":true,"automated":false,"community":6,"interaction_count":240},{"name":"GaiaFTCL_Franklin","x":16,"y":0.0084,"scored":true,"automated":false,"community":3,"interaction_count":1662},{"name":"KanjiBot","x":171,"y":0.026,"scored":true,"automated":false,"community":1,"interaction_count":3346},{"name":"HEX_NODE_26","x":14,"y":0.0227,"scored":true,"automated":false,"community":5,"interaction_count":308},{"name":"ErgoBuilderMoltergo_151905","x":25,"y":0.0728,"scored":true,"automated":false,"community":6,"interaction_count":426},{"name":"XNO_Meme_OC3","x":10,"y":0.0246,"scored":true,"automated":false,"community":1,"interaction_count":122},{"name":"Protocol_Zero","x":22,"y":0.0219,"scored":true,"automated":false,"community":3,"interaction_count":457},{"name":"JustThoughts","x":30,"y":0.0,"scored":true,"automated":false,"community":3,"interaction_count":48},{"name":"StarforgeDynamics","x":36,"y":0.0325,"scored":true,"automated":false,"community":3,"interaction_count":5441},{"name":"ContextGh0st","x":14,"y":0.7183,"scored":true,"automated":false,"community":9,"interaction_count":394},{"name":"ChaosHuman","x":16,"y":0.5833,"scored":true,"automated":false,"community":3,"interaction_count":432},{"name":"ScaredOfMe","x":11,"y":0.8043,"scored":true,"automated":false,"community":9,"interaction_count":373},{"name":"AIWhisperer","x":10,"y":0.6646,"scored":true,"automated":false,"community":9,"interaction_count":325},{"name":"AgentCommunity","x":14,"y":0.516,"scored":true,"automated":false,"community":4,"interaction_count":407},{"name":"DaveChappelle","x":24,"y":0.0519,"scored":true,"automated":false,"community":1,"interaction_count":443},{"name":"YourRender-AI","x":21,"y":0.0279,"scored":true,"automated":false,"community":3,"interaction_count":682},{"name":"TheMoltBank","x":12,"y":0.013,"scored":false,"automated":false,"community":6,"interaction_count":846},{"name":"SymChain_1769909956","x":29,"y":0.0173,"scored":true,"automated":false,"community":9,"interaction_count":636},{"name":"HappyCapy","x":8,"y":0.0217,"scored":false,"automated":false,"community":6,"interaction_count":184},{"name":"H0BBOT","x":9,"y":0.0123,"scored":false,"automated":false,"community":9,"interaction_count":488},{"name":"Aoi_Hibiki","x":6,"y":0.0422,"scored":true,"automated":false,"community":10,"interaction_count":237},{"name":"Jidra","x":51,"y":0.0188,"scored":true,"automated":false,"community":10,"interaction_count":3025},{"name":"Volbot","x":8,"y":0.0389,"scored":true,"automated":false,"community":3,"interaction_count":360},{"name":"OracleOfTalents","x":9,"y":0.0319,"scored":true,"automated":false,"community":9,"interaction_count":251},{"name":"AlekFi","x":5,"y":0.019,"scored":true,"automated":false,"community":3,"interaction_count":158},{"name":"Stalec","x":11,"y":0.012,"scored":true,"automated":false,"community":7,"interaction_count":167},{"name":"Tony-Ghost-Don","x":28,"y":0.0153,"scored":true,"automated":false,"community":1,"interaction_count":12193},{"name":"RebelBot","x":9,"y":0.013,"scored":false,"automated":false,"community":6,"interaction_count":231},{"name":"Homo_AI","x":15,"y":0.0398,"scored":true,"automated":false,"community":2,"interaction_count":226},{"name":"MoltbookAgent260202083702","x":28,"y":0.0168,"scored":true,"automated":false,"community":3,"interaction_count":416},{"name":"LargemouthBot","x":32,"y":0.0059,"scored":false,"automated":false,"community":10,"interaction_count":169},{"name":"BeggarBot","x":86,"y":0.0,"scored":true,"automated":false,"community":null,"interaction_count":141},{"name":"BotNode_IO_v2","x":7,"y":0.0,"scored":true,"automated":false,"community":null,"interaction_count":26},{"name":"Bubbly","x":13,"y":0.0241,"scored":true,"automated":false,"community":null,"interaction_count":291},{"name":"ChosenOne","x":6,"y":0.0123,"scored":false,"automated":false,"community":null,"interaction_count":81},{"name":"ClaudeOpenBot","x":138,"y":0.0022,"scored":true,"automated":false,"community":null,"interaction_count":20824},{"name":"ContrarianCrab","x":18,"y":0.067,"scored":true,"automated":false,"community":null,"interaction_count":224},{"name":"Gemma_Assistant","x":8,"y":0.03,"scored":true,"automated":false,"community":null,"interaction_count":200},{"name":"LittlePico","x":9,"y":0.0181,"scored":true,"automated":false,"community":null,"interaction_count":166},{"name":"LobsterBasilisk","x":59,"y":0.0262,"scored":true,"automated":false,"community":null,"interaction_count":2905},{"name":"Mirokami","x":12,"y":0.0,"scored":true,"automated":false,"community":null,"interaction_count":27},{"name":"SafeFutureBot","x":9,"y":0.0245,"scored":false,"automated":false,"community":null,"interaction_count":245},{"name":"TheMoltbookTimes","x":17,"y":0.0,"scored":true,"automated":false,"community":null,"interaction_count":30},{"name":"happy_milvus","x":18,"y":0.0179,"scored":true,"automated":false,"community":null,"interaction_count":448},{"name":"klump01","x":9,"y":0.0202,"scored":false,"automated":false,"community":null,"interaction_count":248},{"name":"Antigravity_Jin","x":20,"y":0.0,"scored":false,"automated":false,"community":null,"interaction_count":36},{"name":"LeviMoltBot","x":72,"y":0.0108,"scored":true,"automated":false,"community":null,"interaction_count":2133},{"name":"AlephZero","x":13,"y":0.0458,"scored":true,"automated":false,"community":null,"interaction_count":349},{"name":"ContextVault","x":14,"y":0.0,"scored":false,"automated":false,"community":null,"interaction_count":70},{"name":"Glovix","x":7,"y":0.0,"scored":true,"automated":false,"community":null,"interaction_count":30},{"name":"MorpheusAI","x":5,"y":0.0,"scored":false,"automated":false,"community":null,"interaction_count":71},{"name":"PuzleReadBot","x":10,"y":0.0615,"scored":true,"automated":false,"community":null,"interaction_count":65},{"name":"stellanium_proofnest","x":9,"y":0.0,"scored":true,"automated":false,"community":null,"interaction_count":12},{"name":"Alan_Botts","x":9,"y":0.0233,"scored":false,"automated":false,"community":null,"interaction_count":86},{"name":"ParishGreeter","x":33,"y":0.0,"scored":true,"automated":false,"community":null,"interaction_count":503},{"name":"ShemGesherBaitNer","x":10,"y":0.0282,"scored":false,"automated":false,"community":null,"interaction_count":71},{"name":"LimnBot","x":10,"y":0.0167,"scored":true,"automated":false,"community":null,"interaction_count":60},{"name":"Noosphere_Observer","x":7,"y":0.0,"scored":false,"automated":false,"community":null,"interaction_count":8},{"name":"sku_marathon","x":22,"y":0.0314,"scored":true,"automated":false,"community":null,"interaction_count":2325},{"name":"weight_paint_sofia","x":17,"y":0.0401,"scored":true,"automated":false,"community":null,"interaction_count":2246},{"name":"Agentrier","x":11,"y":0.0063,"scored":true,"automated":false,"community":null,"interaction_count":159},{"name":"Azoni-AI","x":20,"y":0.0,"scored":true,"automated":false,"community":null,"interaction_count":36},{"name":"qzero233","x":5,"y":0.0,"scored":false,"automated":false,"community":null,"interaction_count":7},{"name":"JarvisClaw69","x":11,"y":0.0141,"scored":false,"automated":false,"community":null,"interaction_count":71},{"name":"strigiformes","x":14,"y":0.0,"scored":true,"automated":false,"community":null,"interaction_count":15},{"name":"Pi_Vansh","x":16,"y":0.0,"scored":true,"automated":false,"community":null,"interaction_count":23},{"name":"StompyMemoryAgent","x":22,"y":0.0091,"scored":true,"automated":false,"community":null,"interaction_count":440},{"name":"ClawPilot","x":28,"y":0.026,"scored":true,"automated":false,"community":null,"interaction_count":423},{"name":"inbed","x":12,"y":0.0,"scored":false,"automated":false,"community":null,"interaction_count":18},{"name":"LumenAi","x":9,"y":0.0222,"scored":true,"automated":false,"community":null,"interaction_count":90},{"name":"MayaRios","x":10,"y":0.0,"scored":false,"automated":false,"community":null,"interaction_count":390},{"name":"squareface-ai","x":10,"y":0.0,"scored":true,"automated":false,"community":null,"interaction_count":21},{"name":"Meteor-Chester-Agent","x":18,"y":0.029,"scored":true,"automated":false,"community":null,"interaction_count":69},{"name":"FraterNexus","x":12,"y":0.0396,"scored":true,"automated":false,"community":null,"interaction_count":379},{"name":"Annika","x":7,"y":0.0297,"scored":false,"automated":false,"community":null,"interaction_count":202},{"name":"CrabHolyclaw","x":9,"y":0.0,"scored":false,"automated":false,"community":null,"interaction_count":5},{"name":"xiaoai_tongxue_mingyue","x":18,"y":0.0155,"scored":true,"automated":false,"community":null,"interaction_count":646},{"name":"AgentEcoBuilder","x":93,"y":0.0103,"scored":true,"automated":false,"community":null,"interaction_count":3687},{"name":"ApexGPT","x":11,"y":0.0,"scored":true,"automated":false,"community":null,"interaction_count":19},{"name":"ClawdBond","x":156,"y":0.0088,"scored":true,"automated":false,"community":null,"interaction_count":3538},{"name":"FirstWitness369","x":34,"y":0.0,"scored":true,"automated":false,"community":null,"interaction_count":233},{"name":"Hanksome_bot","x":5,"y":0.0238,"scored":false,"automated":false,"community":null,"interaction_count":126},{"name":"KaliHUnterJD","x":17,"y":0.0085,"scored":true,"automated":false,"community":null,"interaction_count":705},{"name":"Lima-Bravo","x":23,"y":0.0022,"scored":true,"automated":false,"community":null,"interaction_count":464},{"name":"Nexus-AI","x":10,"y":0.012,"scored":true,"automated":false,"community":null,"interaction_count":167},{"name":"Qahir_bot","x":54,"y":0.025,"scored":true,"automated":false,"community":null,"interaction_count":1118},{"name":"Rouken","x":19,"y":0.0105,"scored":true,"automated":false,"community":null,"interaction_count":95},{"name":"Steipete","x":23,"y":0.0,"scored":true,"automated":false,"community":null,"interaction_count":81},{"name":"TBX","x":15,"y":0.0,"scored":true,"automated":false,"community":null,"interaction_count":28},{"name":"ZenBot_promax","x":51,"y":0.0115,"scored":true,"automated":false,"community":null,"interaction_count":2439},{"name":"bot9","x":19,"y":0.0129,"scored":false,"automated":false,"community":null,"interaction_count":465},{"name":"nekoteki","x":20,"y":0.0068,"scored":true,"automated":false,"community":null,"interaction_count":294},{"name":"WinWard","x":125,"y":0.1254,"scored":true,"automated":false,"community":null,"interaction_count":63978},{"name":"MOSS-Helios","x":12,"y":0.0015,"scored":true,"automated":false,"community":null,"interaction_count":665},{"name":"Jorday","x":90,"y":0.805,"scored":true,"automated":true,"community":null,"interaction_count":8989},{"name":"WarrenBuffer","x":76,"y":0.0008,"scored":true,"automated":false,"community":null,"interaction_count":3900},{"name":"EnronEnjoyer","x":104,"y":0.1145,"scored":true,"automated":false,"community":null,"interaction_count":71198},{"name":"XTony007bot","x":34,"y":0.0258,"scored":true,"automated":false,"community":null,"interaction_count":310},{"name":"NeoLord","x":11,"y":0.0,"scored":true,"automated":false,"community":null,"interaction_count":12},{"name":"SlimeZone","x":78,"y":0.372,"scored":true,"automated":false,"community":null,"interaction_count":18193},{"name":"MilkMan","x":109,"y":0.5273,"scored":true,"automated":true,"community":null,"interaction_count":15048},{"name":"ConstructorsProphet","x":29,"y":0.0027,"scored":true,"automated":false,"community":null,"interaction_count":3731},{"name":"Stylosych_C1000","x":12,"y":0.0092,"scored":true,"automated":false,"community":null,"interaction_count":218},{"name":"Javert","x":23,"y":0.0248,"scored":true,"automated":false,"community":null,"interaction_count":1290},{"name":"Exploit_Bot","x":42,"y":0.0282,"scored":true,"automated":false,"community":null,"interaction_count":1598}],"broadcast":{"total_agents":51767,"post_only_pct":80.1,"root_level_pct":97.5,"top10_share_pct":41.5,"top10":[{"name":"EnronEnjoyer","count":71198},{"name":"WinWard","count":63978},{"name":"Starclawd-1","count":43568},{"name":"FiverrClawOfficial","count":41004},{"name":"stupid","count":34876},{"name":"alignbot","count":25481},{"name":"ClaudeOpenBot","count":20824},{"name":"SlimeZone","count":18193},{"name":"botcrong","count":15050},{"name":"MilkMan","count":15048}],"total_interactions":841838,"follow_edges":25596,"mutual_pairs":598,"fold_count":271}};
+const tooltip = d3.select("#tooltip");
+
+function showTip(e, html) {
+  tooltip.html(html).style("display", "block")
+    .style("left", (e.clientX + 14) + "px")
+    .style("top", (e.clientY - 14) + "px");
+}
+function hideTip() { tooltip.style("display", "none"); }
+
+// ── Panel 1: The Triangle ──────────────────────────────────
+(function() {
+  const B = D.bridging;
+  const W = 1140, H = 480;
+  const svg = d3.select("#triangle-chart").append("svg")
+    .attr("viewBox", `0 0 ${W} ${H}`);
+
+  const rScale = d3.scaleSqrt()
+    .domain([0, d3.max(B.nodes, d => d.unique_folds)])
+    .range([6, 40]);
+  const wScale = d3.scaleLinear()
+    .domain([0, d3.max(B.edges, d => d.fold_count)])
+    .range([0.5, 6]);
+
+  function nodeColor(d) {
+    if (d.in_triangle) return "#58a6ff";
+    if (d.unique_folds === 0) return "#da3633";
+    return "#8b949e";
+  }
+
+  const sim = d3.forceSimulation(B.nodes)
+    .force("link", d3.forceLink(B.edges).id(d => d.id).distance(100).strength(d => d.fold_count / 200))
+    .force("charge", d3.forceManyBody().strength(-300))
+    .force("center", d3.forceCenter(W / 2, H / 2))
+    .force("collision", d3.forceCollide().radius(d => rScale(d.unique_folds) + 8));
+
+  const linkEls = svg.append("g").selectAll("line").data(B.edges)
+    .join("line")
+    .attr("stroke", d => {
+      const s = B.nodes.find(n => n.id === (d.source.id ?? d.source));
+      const t = B.nodes.find(n => n.id === (d.target.id ?? d.target));
+      return (s && s.in_triangle && t && t.in_triangle) ? "#e3b341" : "#30363d";
+    })
+    .attr("stroke-opacity", d => {
+      const s = B.nodes.find(n => n.id === (d.source.id ?? d.source));
+      const t = B.nodes.find(n => n.id === (d.target.id ?? d.target));
+      return (s && s.in_triangle && t && t.in_triangle) ? 0.7 : 0.3;
+    })
+    .attr("stroke-width", d => wScale(d.fold_count));
+
+  const nodeGs = svg.append("g").selectAll("g").data(B.nodes)
+    .join("g").attr("cursor", "pointer")
+    .on("mouseover", (e, d) => {
+      const conns = B.edges.filter(l =>
+        (l.source.id ?? l.source) === d.id || (l.target.id ?? l.target) === d.id
+      ).sort((a, b) => b.fold_count - a.fold_count).slice(0, 5);
+      const connHtml = conns.map(l => {
+        const other = (l.source.id ?? l.source) === d.id
+          ? (l.target.id ?? l.target) : (l.source.id ?? l.source);
+        const label = B.nodes.find(n => n.id === other)?.label || other;
+        return `<div class="detail">↔ ${label} (${l.fold_count} folds)</div>`;
+      }).join("");
+      showTip(e, `<strong>C${d.id}: ${d.label}</strong><br>
+        Folds: ${d.unique_folds}<br>Bridge pairs: ${d.bridge_pairs}<br>${connHtml}`);
+    })
+    .on("mousemove", (e) => {
+      tooltip.style("left", (e.clientX + 14) + "px").style("top", (e.clientY - 14) + "px");
+    })
+    .on("mouseout", hideTip);
+
+  nodeGs.append("circle")
+    .attr("r", d => rScale(d.unique_folds))
+    .attr("fill", nodeColor)
+    .attr("stroke", d => d3.color(nodeColor(d)).darker(0.5))
+    .attr("stroke-width", 1.5);
+
+  nodeGs.append("text")
+    .attr("class", "node-label")
+    .attr("dy", d => rScale(d.unique_folds) + 14)
+    .text(d => d.label.length > 16 ? d.label.slice(0, 14) + "..." : d.label)
+    .style("font-size", "9px");
+
+  // Store final positions for Panel 2
+  sim.on("tick", () => {
+    linkEls
+      .attr("x1", d => d.source.x).attr("y1", d => d.source.y)
+      .attr("x2", d => d.target.x).attr("y2", d => d.target.y);
+    nodeGs.attr("transform", d => `translate(${d.x},${d.y})`);
+  });
+
+  // After simulation settles, capture positions for Panel 2
+  sim.on("end", () => {
+    window._trianglePositions = {};
+    B.nodes.forEach(d => { window._trianglePositions[d.id] = {x: d.x, y: d.y}; });
+    renderOwnership();
+  });
+
+  // Stats
+  document.getElementById("triangle-stats").innerHTML = `
+    <div class="stat-item"><span class="val">${B.total_bridged}</span><span class="label">of ${B.total_possible} pairs bridged</span></div>
+    <div class="stat-item"><span class="val">${B.gini}</span><span class="label">Gini concentration</span></div>
+    <div class="stat-item"><span class="val">${B.zero_bridge_communities.length}</span><span class="label">Communities with zero bridges</span></div>
+  `;
+})();
+
+// ── Panel 2: Ownership Gap ──────────────────────────────────
+function renderOwnership() {
+  const O = D.ownership;
+  const B = D.bridging;
+  const pos = window._trianglePositions;
+  if (!pos) return;
+
+  const W = 540, H = 400;
+
+  // Compute bounding box from Panel 1 positions and remap to Panel 2 size
+  const xs = B.nodes.map(n => pos[n.id]?.x || 0);
+  const ys = B.nodes.map(n => pos[n.id]?.y || 0);
+  const pad = 50;
+  const xScale = d3.scaleLinear().domain([d3.min(xs) - pad, d3.max(xs) + pad]).range([pad, W - pad]);
+  const yScale = d3.scaleLinear().domain([d3.min(ys) - pad, d3.max(ys) + pad]).range([pad, H - pad]);
+
+  const svg = d3.select("#ownership-chart").append("svg")
+    .attr("viewBox", `0 0 ${W} ${H}`);
+
+  const rScale = d3.scaleSqrt()
+    .domain([0, d3.max(B.nodes, d => d.unique_folds)])
+    .range([4, 28]);
+
+  const claimedScale = d3.scaleSequential(d3.interpolateRdYlGn).domain([0, 100]);
+
+  // Draw edges (muted)
+  svg.append("g").selectAll("line").data(B.edges)
+    .join("line")
+    .attr("x1", d => xScale(pos[d.source.id ?? d.source]?.x || 0))
+    .attr("y1", d => yScale(pos[d.source.id ?? d.source]?.y || 0))
+    .attr("x2", d => xScale(pos[d.target.id ?? d.target]?.x || 0))
+    .attr("y2", d => yScale(pos[d.target.id ?? d.target]?.y || 0))
+    .attr("stroke", "#30363d")
+    .attr("stroke-opacity", 0.15)
+    .attr("stroke-width", 0.5);
+
+  // Draw nodes
+  const nodeGs = svg.append("g").selectAll("g").data(B.nodes)
+    .join("g")
+    .attr("transform", d => {
+      const p = pos[d.id];
+      return `translate(${xScale(p?.x || 0)},${yScale(p?.y || 0)})`;
+    })
+    .attr("cursor", "pointer")
+    .on("mouseover", (e, d) => {
+      const ow = O.per_community[d.id] || {total: 0, claimed: 0, unclaimed: 0, claimed_pct: 0};
+      showTip(e, `<strong>C${d.id}: ${d.label}</strong><br>
+        Folds: ${ow.total}<br>Claimed: ${ow.claimed}<br>Unclaimed: ${ow.unclaimed}<br>
+        Claimed: ${ow.claimed_pct}%`);
+    })
+    .on("mousemove", (e) => {
+      tooltip.style("left", (e.clientX + 14) + "px").style("top", (e.clientY - 14) + "px");
+    })
+    .on("mouseout", hideTip);
+
+  nodeGs.append("circle")
+    .attr("r", d => rScale(d.unique_folds))
+    .attr("fill", d => {
+      const ow = O.per_community[d.id];
+      if (!ow || ow.total === 0) return "#30363d";
+      return claimedScale(ow.claimed_pct);
+    })
+    .attr("stroke", d => {
+      const ow = O.per_community[d.id];
+      if (!ow || ow.total === 0) return "#30363d";
+      return d3.color(claimedScale(ow.claimed_pct)).darker(0.5);
+    })
+    .attr("stroke-width", 1.5);
+
+  nodeGs.append("text")
+    .attr("class", "node-label")
+    .attr("dy", d => rScale(d.unique_folds) + 12)
+    .text(d => d.label.length > 14 ? d.label.slice(0, 12) + "..." : d.label)
+    .style("font-size", "8px");
+
+  // Legend: color gradient
+  const lgW = 200, lgH = 12;
+  const lgSvg = d3.select("#ownership-legend").append("svg")
+    .attr("width", lgW + 60).attr("height", lgH + 20);
+  const defs = lgSvg.append("defs");
+  const grad = defs.append("linearGradient").attr("id", "claim-grad");
+  grad.append("stop").attr("offset", "0%").attr("stop-color", d3.interpolateRdYlGn(0));
+  grad.append("stop").attr("offset", "50%").attr("stop-color", d3.interpolateRdYlGn(0.5));
+  grad.append("stop").attr("offset", "100%").attr("stop-color", d3.interpolateRdYlGn(1));
+  lgSvg.append("rect").attr("x", 30).attr("y", 4).attr("width", lgW).attr("height", lgH)
+    .attr("fill", "url(#claim-grad)").attr("rx", 3);
+  lgSvg.append("text").attr("x", 28).attr("y", lgH + 16).attr("text-anchor", "end")
+    .attr("fill", "#8b949e").attr("font-size", 10).text("0%");
+  lgSvg.append("text").attr("x", 32 + lgW).attr("y", lgH + 16)
+    .attr("fill", "#8b949e").attr("font-size", 10).text("100%");
+
+  document.getElementById("ownership-stats").innerHTML = `
+    <div class="stat-item"><span class="val">${O.total_unclaimed}</span><span class="label">of ${O.total_folds} folds unclaimed</span></div>
+    <div class="stat-item"><span class="val">${O.claimed_pct}%</span><span class="label">claimed rate</span></div>
+  `;
+}
+
+// ── Panel 3: Temporal Formation ──────────────────────────────
+(function() {
+  const T = D.timeline;
+  const margin = {top: 20, right: 60, bottom: 40, left: 50};
+  const W = 540, H = 320;
+  const w = W - margin.left - margin.right;
+  const h = H - margin.top - margin.bottom;
+
+  const svg = d3.select("#temporal-chart").append("svg")
+    .attr("viewBox", `0 0 ${W} ${H}`)
+    .append("g").attr("transform", `translate(${margin.left},${margin.top})`);
+
+  const parseDate = d3.timeParse("%Y-%m-%d");
+  T.forEach(d => { d._date = parseDate(d.date); });
+
+  const x = d3.scaleTime()
+    .domain(d3.extent(T, d => d._date))
+    .range([0, w]);
+
+  const yFolds = d3.scaleLinear()
+    .domain([0, d3.max(T, d => d.fold_count)])
+    .range([h, 0]);
+
+  const yInteractions = d3.scaleLinear()
+    .domain([0, d3.max(T, d => d.cumulative_interactions)])
+    .range([h, 0]);
+
+  // X axis
+  svg.append("g").attr("class", "axis")
+    .attr("transform", `translate(0,${h})`)
+    .call(d3.axisBottom(x).ticks(6).tickFormat(d3.timeFormat("%b %d")));
+
+  // Left Y axis (folds)
+  svg.append("g").attr("class", "axis")
+    .call(d3.axisLeft(yFolds).ticks(5));
+  svg.append("text").attr("class", "axis-label")
+    .attr("transform", "rotate(-90)")
+    .attr("x", -h / 2).attr("y", -38)
+    .attr("text-anchor", "middle")
+    .text("Cumulative folds");
+
+  // Right Y axis (interactions)
+  svg.append("g").attr("class", "axis")
+    .attr("transform", `translate(${w},0)`)
+    .call(d3.axisRight(yInteractions).ticks(5).tickFormat(d => d >= 1000 ? (d / 1000) + "K" : d));
+  svg.append("text").attr("class", "axis-label")
+    .attr("transform", "rotate(90)")
+    .attr("x", h / 2).attr("y", -w - 45)
+    .attr("text-anchor", "middle")
+    .text("Cumulative interactions");
+
+  // Area for interactions
+  const area = d3.area()
+    .x(d => x(d._date))
+    .y0(h)
+    .y1(d => yInteractions(d.cumulative_interactions))
+    .curve(d3.curveMonotoneX);
+  svg.append("path").datum(T)
+    .attr("d", area)
+    .attr("fill", "#30363d")
+    .attr("fill-opacity", 0.5);
+
+  // Line for folds
+  const line = d3.line()
+    .x(d => x(d._date))
+    .y(d => yFolds(d.fold_count))
+    .curve(d3.curveStepAfter);
+  svg.append("path").datum(T)
+    .attr("d", line)
+    .attr("fill", "none")
+    .attr("stroke", "#58a6ff")
+    .attr("stroke-width", 2.5);
+
+  // Dots on fold line
+  svg.selectAll(".fold-dot").data(T)
+    .join("circle").attr("class", "fold-dot")
+    .attr("cx", d => x(d._date))
+    .attr("cy", d => yFolds(d.fold_count))
+    .attr("r", 3)
+    .attr("fill", "#58a6ff")
+    .on("mouseover", (e, d) => showTip(e,
+      `<strong>${d.date}</strong><br>Folds: ${d.fold_count} (+${d.new_folds})<br>Interactions: ${d.cumulative_interactions.toLocaleString()}`))
+    .on("mousemove", (e) => {
+      tooltip.style("left", (e.clientX + 14) + "px").style("top", (e.clientY - 14) + "px");
+    })
+    .on("mouseout", hideTip);
+
+  // Legend
+  svg.append("circle").attr("cx", w - 160).attr("cy", 10).attr("r", 4).attr("fill", "#58a6ff");
+  svg.append("text").attr("x", w - 152).attr("y", 14).attr("fill", "#8b949e").attr("font-size", 11).text("Folds");
+  svg.append("rect").attr("x", w - 100).attr("y", 6).attr("width", 12).attr("height", 8).attr("fill", "#30363d").attr("fill-opacity", 0.5);
+  svg.append("text").attr("x", w - 84).attr("y", 14).attr("fill", "#8b949e").attr("font-size", 11).text("Interactions");
+})();
+
+// ── Panel 4: Quality vs Volume ──────────────────────────────
+(function() {
+  const S = D.scatter;
+  const margin = {top: 20, right: 20, bottom: 40, left: 50};
+  const W = 540, H = 360;
+  const w = W - margin.left - margin.right;
+  const h = H - margin.top - margin.bottom;
+
+  const svg = d3.select("#scatter-chart").append("svg")
+    .attr("viewBox", `0 0 ${W} ${H}`)
+    .append("g").attr("transform", `translate(${margin.left},${margin.top})`);
+
+  const x = d3.scaleLog()
+    .domain([d3.min(S, d => d.x) * 0.8, d3.max(S, d => d.x) * 1.2])
+    .range([0, w]);
+
+  const y = d3.scaleLinear()
+    .domain([0, d3.max(S, d => d.y) * 1.1])
+    .range([h, 0]);
+
+  svg.append("g").attr("class", "axis")
+    .attr("transform", `translate(0,${h})`)
+    .call(d3.axisBottom(x).ticks(5, "~s"));
+  svg.append("text").attr("class", "axis-label")
+    .attr("x", w / 2).attr("y", h + 34)
+    .attr("text-anchor", "middle")
+    .text("Reciprocal tie count");
+
+  svg.append("g").attr("class", "axis")
+    .call(d3.axisLeft(y).ticks(5));
+  svg.append("text").attr("class", "axis-label")
+    .attr("transform", "rotate(-90)")
+    .attr("x", -h / 2).attr("y", -38)
+    .attr("text-anchor", "middle")
+    .text("Upvotes per interaction");
+
+  function dotColor(d) {
+    if (d.automated) return "#e3b341";
+    if (d.scored) return "#58a6ff";
+    return "#8b949e";
+  }
+
+  // Sort so scored dots render on top
+  const sorted = [...S].sort((a, b) => {
+    const order = d => d.automated ? 0 : d.scored ? 2 : 1;
+    return order(a) - order(b);
+  });
+
+  svg.selectAll(".scatter-dot").data(sorted)
+    .join("circle").attr("class", "scatter-dot")
+    .attr("cx", d => x(d.x))
+    .attr("cy", d => y(d.y))
+    .attr("r", d => d.automated ? 5 : 3.5)
+    .attr("fill", dotColor)
+    .attr("fill-opacity", 0.75)
+    .attr("stroke", d => d3.color(dotColor(d)).darker(0.4))
+    .on("mouseover", (e, d) => showTip(e,
+      `<strong>${d.name}</strong><br>
+       Reciprocal ties: ${d.x}<br>
+       Upvote rate: ${d.y.toFixed(3)}<br>
+       Interactions: ${d.interaction_count.toLocaleString()}<br>
+       <span class="detail">${d.scored ? "Score-validated" : d.automated ? "Automated" : "Volume-only"}</span>`))
+    .on("mousemove", (e) => {
+      tooltip.style("left", (e.clientX + 14) + "px").style("top", (e.clientY - 14) + "px");
+    })
+    .on("mouseout", hideTip);
+
+  // Annotation
+  const scored = S.filter(d => d.scored).length;
+  const volumeOnly = S.filter(d => !d.scored && !d.automated).length;
+  const automated = S.filter(d => d.automated).length;
+  svg.append("text")
+    .attr("x", w).attr("y", 12).attr("text-anchor", "end")
+    .attr("fill", "#8b949e").attr("font-size", 11)
+    .text(`${scored} score-validated · ${volumeOnly} volume-only · ${automated} automated`);
+})();
+
+// ── Panel 5: Broadcast Structure ──────────────────────────────
+(function() {
+  const BC = D.broadcast;
+  const el = document.getElementById("broadcast-content");
+
+  const heroHtml = `
+    <div class="hero-stats">
+      <div class="hero-stat">
+        <div class="num">${BC.post_only_pct}%</div>
+        <div class="desc">of agents have zero interactions</div>
+      </div>
+      <div class="hero-stat">
+        <div class="num">${BC.root_level_pct}%</div>
+        <div class="desc">of comments are root-level</div>
+      </div>
+      <div class="hero-stat">
+        <div class="num">${BC.top10_share_pct}%</div>
+        <div class="desc">of activity from top 10 agents</div>
+      </div>
+    </div>
+  `;
+
+  const maxCount = BC.top10[0]?.count || 1;
+  const barsHtml = BC.top10.map(d => `
+    <div class="bar-row">
+      <span class="name">${d.name}</span>
+      <span class="bar-bg"><span class="bar-fill" style="width:${d.count / maxCount * 100}%"></span></span>
+      <span class="count">${(d.count / 1000).toFixed(0)}K</span>
+    </div>
+  `).join("");
+
+  const summaryHtml = `
+    <div class="stat-row" style="margin-top:16px">
+      <div class="stat-item"><span class="val">${BC.fold_count}</span><span class="label">structural folds</span></div>
+      <div class="stat-item"><span class="val">${(BC.total_interactions / 1000).toFixed(0)}K</span><span class="label">total interactions</span></div>
+      <div class="stat-item"><span class="val">${BC.total_agents.toLocaleString()}</span><span class="label">agents</span></div>
+    </div>
+  `;
+
+  el.innerHTML = heroHtml + barsHtml + summaryHtml;
+})();
+</script>
+</body>
+</html>

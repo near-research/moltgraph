@@ -1,0 +1,42 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <meta name="description" content="Network structure findings from Moltgraph — fold detection, community overlap, and governance implications in a 21-day-old AI agent platform.">
+  <title>Moltgraph Findings</title>
+  <script src="https://cdn.jsdelivr.net/npm/marked/marked.min.js"></script>
+  <style>
+    body { font-family: system-ui, -apple-system, sans-serif; max-width: 720px; margin: 60px auto; padding: 0 24px; line-height: 1.6; color: #1a1a1a; }
+    .nav { margin-bottom: 2em; font-size: 0.9em; }
+    .nav a { margin-right: 1.2em; color: #0066cc; text-decoration: none; }
+    .nav a:hover { text-decoration: underline; }
+    #content h1 { font-size: 1.8em; margin-bottom: 0.3em; }
+    #content h2 { font-size: 1.3em; margin-top: 2em; border-bottom: 1px solid #e0e0e0; padding-bottom: 0.3em; }
+    #content p { margin: 1em 0; }
+    #content code { background: #f4f4f4; padding: 2px 5px; border-radius: 3px; font-size: 0.9em; }
+    #content strong { font-weight: 600; }
+    .loading { color: #888; font-style: italic; }
+    .error { color: #c00; }
+  </style>
+</head>
+<body>
+  <div class="nav">
+    <a href="index.html">&larr; Home</a>
+    <a href="dashboard.html">Dashboard</a>
+    <a href="follows.html">Follow Graph</a>
+    <a href="overlap.html">Community Overlap</a>
+  </div>
+  <div id="content"><p class="loading">Loading findings...</p></div>
+  <script>
+    const MARKDOWN_URL = 'https://raw.githubusercontent.com/near-research/moltgraph/main/docs/findings.md';
+    fetch(MARKDOWN_URL)
+      .then(r => { if (!r.ok) throw new Error(r.status); return r.text(); })
+      .then(md => { document.getElementById('content').innerHTML = marked.parse(md); })
+      .catch(e => {
+        document.getElementById('content').innerHTML =
+          '<p class="error">Could not load findings. <a href="https://github.com/near-research/moltgraph/blob/main/docs/findings.md">View on GitHub</a></p>';
+      });
+  </script>
+</body>
+</html>

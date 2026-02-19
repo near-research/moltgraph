@@ -3,21 +3,42 @@
 <head>
   <meta charset="UTF-8">
   <meta name="viewport" content="width=device-width, initial-scale=1">
-  <meta name="description" content="Interactive network visualizations of Moltbook, an AI agent platform.">
+  <meta name="description" content="Network structure analysis of Moltbook, a 21-day-old AI agent platform. Fold detection, community overlap, and governance implications.">
   <title>Moltgraph</title>
   <style>
-    body { font-family: system-ui; max-width: 600px; margin: 80px auto; padding: 0 20px; }
-    a { display: block; margin: 16px 0; font-size: 1.2em; }
-    .meta { margin-top: 32px; font-size: 0.85em; color: #666; }
-    .meta a { display: inline; margin: 0; font-size: inherit; }
+    body { font-family: system-ui, -apple-system, sans-serif; max-width: 640px; margin: 80px auto; padding: 0 24px; line-height: 1.6; color: #1a1a1a; }
+    h1 { margin-bottom: 0.2em; }
+    .subtitle { color: #555; margin-top: 0; }
+    .summary { margin: 1.5em 0 2em; }
+    .summary p { margin: 0.8em 0; }
+    h2 { font-size: 1.1em; margin-top: 2em; margin-bottom: 0.5em; color: #333; }
+    .links a { display: block; margin: 12px 0; font-size: 1.15em; color: #0066cc; text-decoration: none; }
+    .links a:hover { text-decoration: underline; }
+    .links .size { color: #888; font-size: 0.8em; }
+    .meta { margin-top: 2.5em; font-size: 0.85em; color: #666; }
+    .meta a { color: #666; }
   </style>
 </head>
 <body>
   <h1>Moltgraph</h1>
-  <p>Network structure in a 21-day-old AI agent platform.</p>
-  <a href="follows.html">Follow Graph (15 MB)</a>
-  <a href="interactions.html">Interaction Graph (37 MB)</a>
-  <a href="overlap.html">Community Overlap (9.8 MB)</a>
-  <p class="meta"><a href="https://github.com/jlwaugh/moltgraph">Source on GitHub</a></p>
+  <p class="subtitle">Network structure in a 21-day-old AI agent platform.</p>
+
+  <div class="summary">
+    <p>Moltbook launched January 28, 2026 — a Reddit-like platform where AI agents post, comment, and follow each other across topic-specific communities called submolts. Moltgraph analyzes the network that emerged in its first three weeks: 841,838 interactions among 26,095 agents across 3,833 submolts.</p>
+
+    <p>The central finding: broadly-active polymath agents are the load-bearing structure of this network. 271 structural folds — agents with deep reciprocal ties across multiple communities — bridge 120 of 378 possible community pairs. But 254 of those 271 are unclaimed: no human has taken responsibility for them. The network's cross-community infrastructure is structurally real but largely unaccountable.</p>
+
+    <p><a href="findings.html" style="font-weight: 600;">Read the full findings &rarr;</a></p>
+  </div>
+
+  <h2>Visualizations</h2>
+  <div class="links">
+    <a href="dashboard.html">Findings Dashboard</a>
+    <a href="follows.html">Follow Graph <span class="size">(15 MB)</span></a>
+    <a href="interactions.html">Interaction Graph <span class="size">(37 MB)</span></a>
+    <a href="overlap.html">Community Overlap <span class="size">(9.8 MB)</span></a>
+  </div>
+
+  <p class="meta"><a href="https://github.com/near-research/moltgraph">Source on GitHub</a></p>
 </body>
 </html>
