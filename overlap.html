@@ -205,6 +205,23 @@ body {
 #tooltip strong { color: var(--accent); }
 #tooltip .detail { color: var(--muted); font-size: 11px; }
 
+#empty-warning {
+  display: none;
+  position: absolute;
+  top: 50%;
+  left: calc(50% - 150px);
+  transform: translate(-50%, -50%);
+  background: var(--surface);
+  border: 1px solid var(--border);
+  border-radius: 8px;
+  padding: 16px 24px;
+  color: var(--muted);
+  font-size: 13px;
+  text-align: center;
+  z-index: 20;
+}
+#empty-warning b { color: var(--accent); }
+
 .node-circle { cursor: pointer; stroke-width: 1.5px; }
 .node-label {
   fill: var(--text);
@@ -271,6 +288,7 @@ body {
   </div>
 
   <div id="tooltip"></div>
+  <div id="empty-warning"><b>No nodes visible.</b><br>Try adjusting the filters above.</div>
 </div>
 
 <script>
@@ -414,6 +432,12 @@ function loadLayer(layerName) {
     nodeGroups.attr("transform", d => `translate(${d.x},${d.y})`);
   });
 
+  // Set filter slider maxes from data
+  const maxAuthorCount = d3.max(DATA.nodes, d => d.author_count) || 200;
+  const maxSharedAgents = d3.max(DATA.edges, d => d.shared_agents) || 50;
+  document.getElementById("filter-authors").max = maxAuthorCount;
+  document.getElementById("filter-shared").max = maxSharedAgents;
+
   // Update sidebar and apply filters
   updateSidebar();
   applyFilters();
@@ -526,6 +550,9 @@ function applyFilters() {
 
   nodeGroups.attr("display", d => visibleNodes.has(d.id) ? null : "none");
 
+  // Empty-state warning
+  document.getElementById("empty-warning").style.display = visibleNodes.size === 0 ? "block" : "none";
+
   // Update visible stats
   const visEdges = DATA.edges.filter(d =>
     visibleNodes.has(d.source.id) && visibleNodes.has(d.target.id) &&
@@ -576,27 +603,27 @@ function updateSidebar() {
     </div>
   `).join("");
 
-  // Re-bind sidebar click handlers
-  document.querySelectorAll(".top-item").forEach(el => {
-    el.addEventListener("click", () => {
-      const id = el.dataset.id;
-      const node = DATA.nodes.find(n => n.id === id);
-      if (node) highlightNeighbors({stopPropagation:()=>{}}, node);
-    });
-  });
-
-  document.querySelectorAll(".community-row").forEach(el => {
-    el.addEventListener("click", () => {
-      const c = +el.dataset.community;
-      const members = new Set(DATA.nodes.filter(n => n.community === c).map(n => n.id));
-      nodeGroups.select("circle").attr("opacity", n => members.has(n.id) ? 1 : 0.08);
-      nodeGroups.select("text").attr("opacity", n => members.has(n.id) ? 1 : 0);
-      linkEls.attr("stroke-opacity", l =>
-        members.has(l.source.id) && members.has(l.target.id) ? 0.8 : 0.02);
-      highlighted = "community-" + c;
-    });
-  });
 }
+
+// Sidebar click delegation (bound once, not per update)
+document.getElementById("top-bridges").addEventListener("click", (e) => {
+  const el = e.target.closest(".top-item");
+  if (!el) return;
+  const id = el.dataset.id;
+  const node = DATA.nodes.find(n => n.id === id);
+  if (node) highlightNeighbors({stopPropagation:()=>{}}, node);
+});
+document.getElementById("community-list").addEventListener("click", (e) => {
+  const el = e.target.closest(".community-row");
+  if (!el) return;
+  const c = +el.dataset.community;
+  const members = new Set(DATA.nodes.filter(n => n.community === c).map(n => n.id));
+  nodeGroups.select("circle").attr("opacity", n => members.has(n.id) ? 1 : 0.08);
+  nodeGroups.select("text").attr("opacity", n => members.has(n.id) ? 1 : 0);
+  linkEls.attr("stroke-opacity", l =>
+    members.has(l.source.id) && members.has(l.target.id) ? 0.8 : 0.02);
+  highlighted = "community-" + c;
+});
 
 // Filter event listeners
 document.getElementById("filter-shared").addEventListener("input", applyFilters);
