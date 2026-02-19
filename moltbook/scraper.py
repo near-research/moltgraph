@@ -35,7 +35,7 @@ class MoltbookScraper:
         for attempt in range(self.MAX_RETRIES):
             try:
                 resp = self._session.get(url, params=params, timeout=30)
-            except requests.ConnectionError:
+            except (requests.ConnectionError, requests.ReadTimeout):
                 wait = 2 ** attempt * 5
                 print(f"  Connection error — retrying in {wait}s (attempt {attempt + 1}/{self.MAX_RETRIES})")
                 time.sleep(wait)
