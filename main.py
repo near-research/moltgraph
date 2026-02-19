@@ -280,6 +280,17 @@ def cmd_run_follows(args: argparse.Namespace) -> None:
     print(f"\nFollow pipeline complete! Open {viz_path} in your browser.")
 
 
+def cmd_dashboard(args: argparse.Namespace) -> None:
+    """Generate findings dashboard HTML."""
+    from moltbook.dashboard import DashboardGenerator
+
+    gen = DashboardGenerator(
+        analysis_path=args.analysis,
+        overlap_graphs_path=args.overlap_graphs,
+    )
+    gen.generate(args.out)
+
+
 def cmd_analyze(args: argparse.Namespace) -> None:
     """Cross-reference membership and follow data to identify structural roles."""
     if not Path(args.follows).exists():
@@ -381,6 +392,13 @@ def main() -> None:
     p_run.add_argument("--submolts", help="Comma-separated submolt names to target (default: all)")
     p_run.add_argument("--out-dir", default="./output", help="Output directory")
     p_run.set_defaults(func=cmd_run)
+
+    # dashboard
+    p_dash = sub.add_parser("dashboard", help="Generate findings dashboard")
+    p_dash.add_argument("--analysis", default="data/analysis.json", help="Analysis JSON")
+    p_dash.add_argument("--overlap-graphs", default="data/overlap_graphs.json", help="Overlap graphs JSON")
+    p_dash.add_argument("--out", default="output/dashboard.html", help="Output HTML path")
+    p_dash.set_defaults(func=cmd_dashboard)
 
     # analyze
     p_az = sub.add_parser("analyze", help="Cross-reference membership + follow data")

@@ -428,28 +428,27 @@ const GRAPH_DATA = {graph_json};
     : [...nodes].sort((a, b) => b.betweenness - a.betweenness).slice(0, 10);
   const top10Max = isFollow ? maxFollowers : maxBetweenness;
   const top10El = document.getElementById("top10-list");
-  top10.forEach(d => {{
+  top10El.innerHTML = top10.map(d => {{
     const val = isFollow ? (d.follower_count || 0) : d.betweenness;
     const pct = top10Max > 0 ? (val / top10Max) * 100 : 0;
-    top10El.innerHTML += `<div class="top10-item">
+    return `<div class="top10-item">
       <span class="swatch" style="background:${{color(d.community)}}"></span>
       <span class="name" title="${{d.id}}">${{d.display_name}}</span>
       <span class="bar-wrap"><span class="bar" style="width:${{pct}}%"></span></span>
     </div>`;
-  }});
+  }}).join("");
 
   // Communities
   const communityMap = d3.group(nodes, d => d.community);
   const commEl = document.getElementById("community-list");
-  [...communityMap.entries()]
+  commEl.innerHTML = [...communityMap.entries()]
     .sort((a, b) => b[1].length - a[1].length)
-    .forEach(([cid, members]) => {{
-      commEl.innerHTML += `<div class="community-row">
+    .map(([cid, members]) => `<div class="community-row">
         <span class="swatch" style="background:${{color(cid)}}"></span>
         <span>Community ${{cid}}</span>
         <span class="stat-val">${{members.length}}</span>
-      </div>`;
-    }});
+      </div>`
+    ).join("");
 
   // Sidebar toggle
   const sidebar = document.getElementById("sidebar");
@@ -627,6 +626,7 @@ const GRAPH_DATA = {graph_json};
     document.getElementById("topn-slider").max = nodes.length;
     document.getElementById("topn-slider").value = topN;
     document.getElementById("topn-val").textContent = topN;
+    document.getElementById("weight-slider").max = maxWeight;
     document.getElementById("weight-slider").value = minWeight;
     document.getElementById("weight-val").textContent = minWeight;
 
@@ -719,6 +719,17 @@ const GRAPH_DATA = {graph_json};
         upvotes: e.upvotes,
       }}));
 
+      // Pre-compute lookup structures for O(1) access in tick/hover
+      const reverseSet = new Set(simEdges.map(e => `${{e.target}}-${{e.source}}`));
+      const outEdges = new Map();
+      const inEdges = new Map();
+      simEdges.forEach(e => {{
+        if (!outEdges.has(e.source)) outEdges.set(e.source, []);
+        outEdges.get(e.source).push(e);
+        if (!inEdges.has(e.target)) inEdges.set(e.target, []);
+        inEdges.get(e.target).push(e);
+      }});
+
       // Links — curved bezier paths
       forceLink = linkG.selectAll("path").data(simEdges, d => d.source + "-" + d.target);
       forceLink.exit().remove();
@@ -758,25 +769,25 @@ const GRAPH_DATA = {graph_json};
         .on("mouseover", function(event, d) {{
           let html;
           if (isFollow) {{
-            const mutualCount = simEdges.filter(e => {{
-              const sid = e.source?.id || e.source;
-              const tid = e.target?.id || e.target;
-              return e.mutual && (sid === d.id || tid === d.id);
-            }}).length / 2;
-            const followingInGraph = simEdges.filter(e => (e.source?.id || e.source) === d.id);
-            const followersInGraph = simEdges.filter(e => (e.target?.id || e.target) === d.id);
+            const nodeOut = outEdges.get(d.id) || [];
+            const nodeIn = inEdges.get(d.id) || [];
+            const mutualCount = nodeOut.filter(e => e.mutual).length;
+            const followingInGraph = nodeOut;
+            const followersInGraph = nodeIn;
             html = `<strong>${{d.display_name}}</strong><br>
               Followers: ${{(d.follower_count || 0).toLocaleString()}}<br>
               Following: ${{(d.following_count || 0).toLocaleString()}}<br>
               <span class="mutual-badge">Mutual: ${{Math.floor(mutualCount)}}</span><br>
               Community: ${{d.community}}`;
           }} else {{
-            const conns = simEdges
-              .filter(e => (e.source?.id || e.source) === d.id || (e.target?.id || e.target) === d.id)
+            const nodeOut = outEdges.get(d.id) || [];
+            const nodeIn = inEdges.get(d.id) || [];
+            const conns = [...nodeOut, ...nodeIn]
+              .filter(e => e.source === d.id || e.target === d.id)
               .sort((a, b) => b.weight - a.weight)
               .slice(0, 3)
               .map(e => {{
-                const other = (e.source?.id || e.source) === d.id ? (e.target?.id || e.target) : (e.source?.id || e.source);
+                const other = e.source === d.id ? e.target : e.source;
                 return `${{other}} (${{e.weight}})`;
               }});
             html = `<strong>${{d.display_name}}</strong><br>
@@ -838,10 +849,7 @@ const GRAPH_DATA = {graph_json};
           const ey = ty - (dy / dist) * r;
 
           // Check if reverse edge exists for curved path
-          const hasReverse = simEdges.some(e =>
-            (e.source?.id || e.source) === (d.target?.id || d.target) &&
-            (e.target?.id || e.target) === (d.source?.id || d.source)
-          );
+          const hasReverse = reverseSet.has(`${{d.source?.id || d.source}}-${{d.target?.id || d.target}}`);
           if (hasReverse) {{
             const mx = (sx + ex) / 2;
             const my = (sy + ey) / 2;
